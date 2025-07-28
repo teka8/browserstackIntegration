@@ -1,0 +1,20 @@
+# BrowserStack configuration
+userName: "tekadefar_Pfe1hX"
+accessKey: "LDyExLn7cqdjwheyxECy"
+
+local: true
+localIdentifier: "LOCAL_TEST_ID"
+
+capabilities:
+  - browserName: "Chrome"
+    browserVersion: "latest"
+    os: "Windows"
+    osVersion: "10"
+    projectName: "Reqnroll BrowserStack Demo"
+    buildName: "Build 1.0"
+    sessionName: "Reqnroll Test"
+    local: true
+    'browserstack.localIdentifier': "LOCAL_TEST_ID"
+    'browserstack.video': "true"
+    'browserstack.debug': "true"
+    'browserstack.console': "verbose"
