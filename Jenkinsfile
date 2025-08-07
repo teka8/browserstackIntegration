@@ -4,7 +4,7 @@ pipeline {
     parameters {
         string(
             name: 'TAG_FILTER',
-            defaultValue: '@smoke or @regression',
+            defaultValue: '@smoke or @automation',
             description: 'Enter Reqnroll tags to run (e.g. @smoke or @regression or @smoke and @login)'
         )
     }
