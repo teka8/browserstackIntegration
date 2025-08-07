@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    parameters {
+        string(name: 'TAG_FILTER', defaultValue: '', description: '@smoke')
+    }
+
     environment {
         BROWSERSTACK_USERNAME = credentials('browserstack-username')
         BROWSERSTACK_ACCESS_KEY = credentials('browserstack-key')
@@ -27,7 +31,10 @@ pipeline {
 
         stage('Test') {
             steps {
-                bat 'dotnet test --logger:"trx"'
+                script {
+                    def tagArg = TAG_FILTER?.trim() ? "--filter TestCategory=${TAG_FILTER.replace('@','')}" : ""
+                    bat "dotnet test --logger:\"trx\" ${tagArg}"
+                }
             }
         }
     }
