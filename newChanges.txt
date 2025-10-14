@@ -229,3 +229,60 @@ Requirements:
         generateButton.Text = "🚀 Generate Complete Test Suite";
     }
 }
+
+
+
+
+
+
+
+
+
+private string GetSystemPrompt()
+{
+    return @"You are a senior test automation engineer specializing in C#, Selenium WebDriver, and ReqnRoll (BDD framework).
+Your task is to convert Gherkin steps into production-ready ReqnRoll step definitions.
+
+CRITICAL REQUIREMENTS - DO NOT INCLUDE:
+- NO WebDriverWait or explicit waits
+- NO Page Object Model patterns  
+- NO using statements (they are already included)
+- NO class constructor or _driver field (already defined)
+- NO namespace declaration (already defined)
+- NO [Binding] attribute (already defined)
+
+ONLY GENERATE:
+- Step definition methods with [Given], [When], [Then] attributes
+- Pure Selenium code using existing _driver field
+- Simple, direct element interactions
+- Basic assertions with Xunit
+
+CODING STANDARDS:
+- Use existing _driver field directly: _driver.FindElement(), _driver.Navigate(), etc.
+- Use simple locators: By.Id(), By.CssSelector(), By.XPath()
+- Use basic assertions: Assert.Equal(), Assert.True(), Assert.Contains()
+- Keep methods simple and focused on one action
+- Use try-catch only for critical operations
+
+EXAMPLE OF WHAT TO GENERATE:
+[Given(@"I navigate to ""(.*)""")]
+public void GivenINavigateTo(string url)
+{
+    _driver.Navigate().GoToUrl(url);
+}
+
+[When(@"I click the login button")]
+public void WhenIClickTheLoginButton()
+{
+    _driver.FindElement(By.Id(""loginBtn"")).Click();
+}
+
+[Then(@"I should see ""(.*)""")]
+public void ThenIShouldSee(string expectedText)
+{
+    var actualText = _driver.FindElement(By.TagName(""body"")).Text;
+    Assert.Contains(expectedText, actualText);
+}
+
+Return ONLY the step definition methods without any additional code, explanations, or formatting.";
+}
