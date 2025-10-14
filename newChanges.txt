@@ -1,0 +1,231 @@
+CompleteTestGenerator.cs
+
+public async Task SaveCompleteTestResults(CompleteTestResult result, string featureName)
+{
+    if (!result.IsSuccess) return;
+
+    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+    
+    // ✅ Save Feature File: back one level → browserstackIntegration-main\Features
+    var currentDir = Directory.GetCurrentDirectory();
+    var parentDir = Directory.GetParent(currentDir);
+    var featuresPath = Path.Combine(parentDir.FullName, "browserstackIntegration-main", "Features");
+    Directory.CreateDirectory(featuresPath);
+    
+    var featureFilePath = Path.Combine(featuresPath, $"{featureName}.feature");
+    await File.WriteAllTextAsync(featureFilePath, result.GeneratedGherkin);
+
+    // ✅ Save Step Definitions: back one level → browserstackIntegration-main\StepDefinitions
+    var stepDefPath = Path.Combine(parentDir.FullName, "browserstackIntegration-main", "StepDefinitions");
+    Directory.CreateDirectory(stepDefPath);
+    
+    var stepDefFilePath = Path.Combine(stepDefPath, $"{featureName}Steps.cs");
+    
+    // Generate all step definitions in one file with proper namespace
+    var stepDefinitionsContent = GenerateSingleStepDefinitionFile(result, featureName);
+    await File.WriteAllTextAsync(stepDefFilePath, stepDefinitionsContent);
+
+    // Save summary
+    var summaryPath = Path.Combine(stepDefPath, $"{featureName}_GenerationSummary.txt");
+    var summary = GenerateSummaryReport(result, featureName, featuresPath, stepDefPath);
+    await File.WriteAllTextAsync(summaryPath, summary);
+
+    Console.WriteLine($"💾 Feature saved to: {featureFilePath}");
+    Console.WriteLine($"💾 Step definitions saved to: {stepDefFilePath}");
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+private string GenerateSingleStepDefinitionFile(CompleteTestResult result, string featureName)
+{
+    var sb = new StringBuilder();
+    
+    // Add required usings and namespace
+    sb.AppendLine("using EHB.UI.Automation.Drivers;");
+    sb.AppendLine("using System;");
+    sb.AppendLine("using TechTalk.SpecFlow;");
+    sb.AppendLine("using Xunit;");
+    sb.AppendLine();
+    sb.AppendLine("namespace SpecFlowTVISPO.specs.Steps");
+    sb.AppendLine("{");
+    sb.AppendLine("    [Binding]");
+    sb.AppendLine($"    public class {featureName}Steps");
+    sb.AppendLine("    {");
+    sb.AppendLine("        private readonly BrowserDriver _browserDriver;");
+    sb.AppendLine();
+    sb.AppendLine($"        public {featureName}Steps(BrowserDriver browserDriver)");
+    sb.AppendLine("        {");
+    sb.AppendLine("            _browserDriver = browserDriver;");
+    sb.AppendLine("        }");
+    sb.AppendLine();
+
+    // Add each successful step definition
+    foreach (var stepResult in result.SuccessfulStepDefinitions)
+    {
+        if (!string.IsNullOrEmpty(stepResult.GeneratedCode))
+        {
+            // Clean up the code and indent it properly
+            var cleanedCode = stepResult.GeneratedCode
+                .Replace("[Binding]", "") // Remove duplicate binding
+                .Replace("public class", "// Original class declaration removed")
+                .Replace("namespace", "// Original namespace removed");
+            
+            // Add proper indentation
+            var lines = cleanedCode.Split('\n');
+            foreach (var line in lines)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    sb.AppendLine("        " + line.Trim());
+                }
+            }
+            sb.AppendLine();
+        }
+    }
+
+    sb.AppendLine("    }");
+    sb.AppendLine("}");
+    
+    return sb.ToString();
+}
+
+
+
+
+
+
+
+
+
+private string GenerateSummaryReport(CompleteTestResult result, string featureName, string featuresPath, string stepDefPath)
+{
+    return $@"Complete Test Generation Summary
+===============================
+
+Feature: {featureName}
+Generated: {result.GeneratedAt}
+Generation Time: {result.GenerationTime.TotalSeconds:F1} seconds
+
+Files Generated:
+---------------
+Feature File: {Path.Combine(featuresPath, $"{featureName}.feature")}
+Step Definitions: {Path.Combine(stepDefPath, $"{featureName}Steps.cs")}
+
+Generation Results:
+------------------
+Total Steps: {result.TotalSteps}
+Successful: {result.SuccessfulStepDefinitions.Count}
+Failed: {result.FailedStepDefinitions.Count}
+
+Ready to use! Just build and run your SpecFlow tests.
+
+Notes:
+------
+- Feature file is in your Features folder
+- Step definitions are in your StepDefinitions folder  
+- Both files are ready to use immediately
+- Includes proper namespace and BrowserDriver dependency
+";
+}
+
+
+
+
+
+
+
+
+
+CompleteTestForm.cs
+private async Task GenerateCompleteTests(string criteria, string domain, string featureName, 
+    TextBox resultTextBox, Label progressLabel, Button generateButton)
+{
+    try
+    {
+        generateButton.Enabled = false;
+        generateButton.Text = "🔄 Generating...";
+        progressLabel.Text = "Starting complete test generation...";
+        resultTextBox.Text = "Starting generation process...\n\n";
+
+        // Use specific prompt for single scenario
+        var specificCriteria = $@"Create exactly ONE Gherkin scenario for: {criteria}
+
+Requirements:
+- Create only ONE Scenario (not Scenario Outline)
+- Focus on the main happy path
+- Include realistic test data
+- Make it immediately runnable
+- Use simple, clear steps";
+
+        var result = await _generator.GenerateCompleteTestsAsync(specificCriteria, domain);
+
+        if (result.IsSuccess)
+        {
+            progressLabel.Text = "Saving results to files...";
+            resultTextBox.Text += "💾 Saving results to files...\n";
+            
+            // Save all generated content
+            await _generator.SaveCompleteTestResults(result, featureName);
+
+            // Display results
+            var output = $"✅ COMPLETE TEST GENERATION SUCCESSFUL!\n";
+            output += "==========================================\n\n";
+            output += $"Feature: {featureName}\n";
+            output += $"Generation Time: {result.GenerationTime.TotalSeconds:F1} seconds\n\n";
+            output += $"📝 Files Generated:\n";
+            output += $"   ✅ Feature: browserstackIntegration-main/Features/{featureName}.feature\n";
+            output += $"   ✅ Step Definitions: browserstackIntegration-main/StepDefinitions/{featureName}Steps.cs\n\n";
+            output += $"🔧 Step Definitions Generated:\n";
+            output += $"   ✅ Successful: {result.SuccessfulSteps}\n";
+            output += $"   ❌ Failed: {result.FailedSteps}\n\n";
+            
+            output += $"🚀 Ready to use! Just build and run your SpecFlow tests.\n\n";
+
+            if (result.SuccessfulSteps > 0)
+            {
+                output += "Generated Steps:\n";
+                foreach (var step in result.SuccessfulStepDefinitions)
+                {
+                    output += $"   ✅ {step.OriginalStep}\n";
+                }
+            }
+
+            resultTextBox.Text = output;
+            progressLabel.Text = $"✅ Generation complete! Files are ready to use";
+
+            MessageBox.Show($"✅ Complete test suite generated successfully!\n\n" +
+                          $"Feature: browserstackIntegration-main/Features/{featureName}.feature\n" +
+                          $"Step Definitions: browserstackIntegration-main/StepDefinitions/{featureName}Steps.cs\n\n" +
+                          $"Ready to build and run!",
+                "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        else
+        {
+            resultTextBox.Text = $"❌ Generation failed:\n{result.ErrorMessage}";
+            progressLabel.Text = "❌ Generation failed";
+            MessageBox.Show($"❌ Generation failed:\n{result.ErrorMessage}", 
+                "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+    catch (Exception ex)
+    {
+        resultTextBox.Text = $"❌ Error: {ex.Message}";
+        progressLabel.Text = "❌ Error occurred";
+        MessageBox.Show($"❌ Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+    }
+    finally
+    {
+        generateButton.Enabled = true;
+        generateButton.Text = "🚀 Generate Complete Test Suite";
+    }
+}
