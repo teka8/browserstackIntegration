@@ -23,3 +23,66 @@ Find and clink on the news card
 
 Check that the resulting URL is /admin/posts/News?perPage=10
 
+
+
+
+
+USE ReportsDB;
+GO
+
+CREATE OR ALTER PROCEDURE Refresh_Monthly_Orders_Incremental
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    ---------------------------
+    -- 1) Calculate date ranges
+    ---------------------------
+
+    -- Month to delete (3 months old)
+    DECLARE @DeleteMonthStart DATE = DATEFROMPARTS(
+        YEAR(DATEADD(MONTH, -3, GETDATE())),
+        MONTH(DATEADD(MONTH, -3, GETDATE())),
+        1
+    );
+
+    DECLARE @DeleteMonthEnd DATE = EOMONTH(DATEADD(MONTH, -3, GETDATE()));
+
+
+    -- Month to insert (last completed month)
+    DECLARE @InsertMonthStart DATE = DATEFROMPARTS(
+        YEAR(DATEADD(MONTH, -1, GETDATE())),
+        MONTH(DATEADD(MONTH, -1, GETDATE())),
+        1
+    );
+
+    DECLARE @InsertMonthEnd DATE = EOMONTH(DATEADD(MONTH, -1, GETDATE()));
+
+
+    ---------------------------
+    -- 2) DELETE old expired month
+    ---------------------------
+    DELETE FROM dbo.Orders
+    WHERE OrderDate BETWEEN @DeleteMonthStart AND @DeleteMonthEnd;
+
+
+    ---------------------------
+    -- 3) INSERT new month data (with identity)
+    ---------------------------
+    SET IDENTITY_INSERT dbo.Orders ON;
+
+    INSERT INTO dbo.Orders (OrderID, Product, Amount, OrderDate)
+    SELECT 
+        OrderID,
+        Product,
+        Amount,
+        OrderDate
+    FROM MainDB.dbo.Orders
+    WHERE OrderDate BETWEEN @InsertMonthStart AND @InsertMonthEnd;
+
+    SET IDENTITY_INSERT dbo.Orders OFF;
+
+END;
+GO
+
+
