@@ -86,3 +86,20 @@ END;
 GO
 
 
+You are an expert Playwright architect. I want to improve my Playwright test reports so that non-technical people can easily understand them.
+
+Your task is to directly edit my existing Playwright test files located in the `e2e` folder.
+
+Rewrite the tests so they are clearer, more readable, and non-technical by doing the following:
+
+1. Replace technical selectors-based steps with human-readable `test.step()` descriptions.
+2. Add plain-English annotations using `test.info().annotations`.
+3. Add business-friendly test titles and high-level explanations.
+4. Keep all logic, assertions, and structure exactly the same—only make the report output understandable to non-technical stakeholders.
+5. For every user action, write steps like “User clicks the Login button” instead of “page.locator(‘#login-btn’).click()”.
+6. Add optional Allure steps (`await allure.step(...)`) where it improves clarity.
+7. Do not remove or break any functional parts of the tests.
+8. Maintain imports, fixtures, and project setup exactly as they are.
+
+
+
