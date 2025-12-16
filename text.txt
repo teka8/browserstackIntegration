@@ -103,3 +103,77 @@ Rewrite the tests so they are clearer, more readable, and non-technical by doing
 
 
 
+
+
+
+
+
+
+
+
+
+WITH InboundEvents AS (
+    SELECT
+        te.ClientTransactionID,
+        MIN(te.EventDate) AS InboundEventDate
+    FROM trxQA.dbo.TransactionEvents te
+    WHERE te.TransactionDirection = 'Inbound'
+    GROUP BY te.ClientTransactionID
+),
+OutboundEvents AS (
+    SELECT
+        te.ClientTransactionID,
+        MAX(te.EventDate) AS OutboundEventDate
+    FROM trxQA.dbo.TransactionEvents te
+    WHERE te.TransactionDirection = 'Outbound'
+    GROUP BY te.ClientTransactionID
+),
+LastStatus AS (
+    SELECT
+        te.ClientTransactionID,
+        te.Description,
+        ROW_NUMBER() OVER (
+            PARTITION BY te.ClientTransactionID
+            ORDER BY te.EventDate DESC
+        ) AS rn
+    FROM trxQA.dbo.TransactionEvents te
+)
+SELECT
+    ie.InboundEventDate AS ClaimCreateDate,
+    ct.TransactionID AS PartnerClaimID,
+    ct.ParentTransactionID AS DCIClaimID,
+    ct.PayerIDCode AS InboundPayerID,
+    CAST(NULL AS varchar(255)) AS InboundPayerAddress,
+    -- FIXED: Need to find the outbound transaction, not same record
+    out_ct.PayerIDCode AS OutboundPayerID,
+    ct.DestinationPartnerCode AS OutboundDestinationPartnerCode,
+    ls.Description AS LastClaimStatus,
+    ct.ParentTransactionID AS MetaClaimID,
+    ct.PayerID AS PayerIDCode_ID,
+    ct.PayerIDCode AS PayerIDCode_Display
+FROM trxQA.dbo.ClientTransactions ct
+JOIN InboundEvents ie ON ct.ClientTransactionID = ie.ClientTransactionID
+JOIN OutboundEvents oe ON ct.ClientTransactionID = oe.ClientTransactionID
+-- FIXED JOIN: Find the OUTBOUND version of this claim
+JOIN trxQA.dbo.ClientTransactions out_ct 
+    ON out_ct.ParentTransactionID = ct.ParentTransactionID  -- Link by same claim
+    AND out_ct.ClientTransactionID IN (
+        SELECT ClientTransactionID 
+        FROM trxQA.dbo.TransactionEvents 
+        WHERE TransactionDirection = 'Outbound'
+    )
+JOIN LastStatus ls ON ls.ClientTransactionID = ct.ClientTransactionID AND ls.rn = 1
+WHERE
+    -- FIXED: Use correct partner codes from requirements
+    ct.SourcePartnerCode IN ('HSD', 'HSI Parents', 'GCC')
+    AND ct.SourcePartnerCode <> 'HSI'  -- Explicitly exclude HSI
+    -- FIXED: Correct date range (last 90 days of 03/31/2025)
+    AND ie.InboundEventDate BETWEEN '2025-01-01' AND '2025-03-31'
+    -- FIXED: Compare inbound vs outbound payer IDs
+    AND ct.PayerIDCode <> out_ct.PayerIDCode
+ORDER BY
+    ct.SourcePartnerCode,
+    ie.InboundEventDate;
+
+
+
