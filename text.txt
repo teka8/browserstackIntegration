@@ -279,3 +279,50 @@ WHERE ic.InboundPayerID <> oc.OutboundPayerID  -- Only non-matching
 ORDER BY 
     ic.InboundEventDate;
 
+
+
+
+
+-- Test with smaller date ranges first
+DECLARE @StartDate DATE = '2025-01-01';
+DECLARE @EndDate DATE = '2025-03-31';
+
+-- Try one week at a time
+SET @StartDate = '2025-03-01';
+SET @EndDate = '2025-03-07';
+
+WITH InboundClaims AS (
+    SELECT DISTINCT
+        ct.ClientTransactionID,
+        ct.TransactionID,
+        ct.ParentTransactionID,
+        ct.PayerIDCode AS InboundPayerID,
+        ct.DestinationPartnerCode,
+        ct.PayerID,
+        ct.SourcePartnerCode,
+        MIN(te.EventDate) AS InboundEventDate
+    FROM trxQA.dbo.ClientTransactions ct
+    JOIN trxQA.dbo.TransactionEvents te 
+        ON ct.ClientTransactionID = te.ClientTransactionID
+    WHERE te.TransactionDirection = 'Inbound'
+        AND ct.SourcePartnerCode IN ('HSD', 'HSI Parents', 'GCC')
+        AND ct.SourcePartnerCode <> 'HSI'
+        AND te.EventDate BETWEEN @StartDate AND @EndDate  -- Limit date range
+    GROUP BY ct.ClientTransactionID, ct.TransactionID, ct.ParentTransactionID,
+             ct.PayerIDCode, ct.DestinationPartnerCode, ct.PayerID, ct.SourcePartnerCode
+)
+SELECT TOP 1000  -- Limit results for testing
+    ic.InboundEventDate AS ClaimCreateDate,
+    ic.TransactionID AS PartnerClaimID,
+    ic.ParentTransactionID AS DCIClaimID,
+    ic.InboundPayerID,
+    CAST(NULL AS varchar(255)) AS InboundPayerAddress,
+    'CHECK_OUTBOUND' AS OutboundPayerID,  -- Placeholder
+    ic.DestinationPartnerCode AS OutboundDestinationPartnerCode,
+    'PENDING' AS LastClaimStatus,  -- Placeholder
+    ic.ParentTransactionID AS MetaClaimID,
+    ic.PayerID AS PayerIDCode_ID,
+    ic.InboundPayerID AS PayerIDCode_Display,
+    ic.SourcePartnerCode
+FROM InboundClaims ic
+ORDER BY ic.InboundEventDate;
