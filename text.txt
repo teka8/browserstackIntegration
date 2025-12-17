@@ -326,3 +326,58 @@ SELECT TOP 1000  -- Limit results for testing
     ic.SourcePartnerCode
 FROM InboundClaims ic
 ORDER BY ic.InboundEventDate;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- DentaCarg Alliance Provider Pay To Address Report
+SELECT
+    u.UserID,
+    u.FirstName AS [Provider First Name],
+    u.LastName AS [Provider Last Name],
+    ua.AddressLine1 AS [Pay To Address Ln 1],
+    ua.AddressLine2 AS [Pay To Address Ln 2],
+    ua.City AS [Pay To Address City],
+    ua.State AS [Pay To Address State],
+    ua.Zip AS [Pay To Address Zip]
+FROM common.dbo.Users u
+-- Join to get users in DCA groups
+INNER JOIN common.dbo.GroupsUsers gu ON u.UserID = gu.UserID
+-- Join to get Pay To Address (AddressType = 1)
+INNER JOIN common.dbo.UserAddress ua ON u.UserID = ua.UserID 
+    AND ua.AddressType = 1
+-- Join to identify DCA groups (assuming GroupName contains 'DCA' or similar identifier)
+INNER JOIN common.dbo.Groups g ON gu.GroupID = g.GroupID
+WHERE 
+    -- Filter for dental professionals only
+    u.Profession IN ('Dentist', 'Orthodontist', 'Periodontist', 
+                     'Endodontist', 'Oral Surgeon', 'Prosthodontist',
+                     'Pediatric Dentist', 'Dental Hygienist')
+    -- Identify DCA groups (adjust this filter based on actual group names/identifiers)
+    AND (g.GroupName LIKE '%DCA%' 
+         OR g.GroupName LIKE '%DentaCarg%' 
+         OR g.GroupName LIKE '%Dentacarg Alliance%'
+         OR g.GroupDescription LIKE '%DCA%')
+    -- Optional: Exclude inactive users if needed
+    AND u.IsActive = 1
+ORDER BY 
+    u.LastName, 
+    u.FirstName;
