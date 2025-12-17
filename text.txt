@@ -177,3 +177,105 @@ ORDER BY
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- First, create indexes if you have permissions (run separately)
+/*
+CREATE INDEX idx_TransactionEvents_Direction_Date 
+ON trxQA.dbo.TransactionEvents (TransactionDirection, EventDate) 
+INCLUDE (ClientTransactionID, Description);
+
+CREATE INDEX idx_ClientTransactions_Source_Parent 
+ON trxQA.dbo.ClientTransactions (SourcePartnerCode, ParentTransactionID) 
+INCLUDE (ClientTransactionID, TransactionID, PayerIDCode, DestinationPartnerCode, PayerID);
+*/
+
+-- Optimized query using temp tables and better joins
+WITH InboundClaims AS (
+    SELECT DISTINCT
+        ct.ClientTransactionID,
+        ct.TransactionID,
+        ct.ParentTransactionID,
+        ct.PayerIDCode AS InboundPayerID,
+        ct.DestinationPartnerCode,
+        ct.PayerID,
+        MIN(te.EventDate) AS InboundEventDate
+    FROM trxQA.dbo.ClientTransactions ct
+    JOIN trxQA.dbo.TransactionEvents te 
+        ON ct.ClientTransactionID = te.ClientTransactionID
+    WHERE te.TransactionDirection = 'Inbound'
+        AND ct.SourcePartnerCode IN ('HSD', 'HSI Parents', 'GCC')
+        AND ct.SourcePartnerCode <> 'HSI'
+        AND te.EventDate BETWEEN '2025-01-01' AND '2025-03-31'
+    GROUP BY ct.ClientTransactionID, ct.TransactionID, ct.ParentTransactionID,
+             ct.PayerIDCode, ct.DestinationPartnerCode, ct.PayerID
+),
+OutboundClaims AS (
+    SELECT DISTINCT
+        ct.ParentTransactionID,
+        ct.PayerIDCode AS OutboundPayerID,
+        MAX(te.EventDate) AS OutboundEventDate
+    FROM trxQA.dbo.ClientTransactions ct
+    JOIN trxQA.dbo.TransactionEvents te 
+        ON ct.ClientTransactionID = te.ClientTransactionID
+    WHERE te.TransactionDirection = 'Outbound'
+    GROUP BY ct.ParentTransactionID, ct.PayerIDCode
+),
+LastStatus AS (
+    SELECT 
+        ClientTransactionID,
+        Description AS LastClaimStatus
+    FROM (
+        SELECT
+            te.ClientTransactionID,
+            te.Description,
+            ROW_NUMBER() OVER (
+                PARTITION BY te.ClientTransactionID
+                ORDER BY te.EventDate DESC
+            ) AS rn
+        FROM trxQA.dbo.TransactionEvents te
+    ) sub
+    WHERE rn = 1
+)
+SELECT
+    ic.InboundEventDate AS ClaimCreateDate,
+    ic.TransactionID AS PartnerClaimID,
+    ic.ParentTransactionID AS DCIClaimID,
+    ic.InboundPayerID,
+    CAST(NULL AS varchar(255)) AS InboundPayerAddress,
+    oc.OutboundPayerID,
+    ic.DestinationPartnerCode AS OutboundDestinationPartnerCode,
+    ls.LastClaimStatus,
+    ic.ParentTransactionID AS MetaClaimID,
+    ic.PayerID AS PayerIDCode_ID,
+    ic.InboundPayerID AS PayerIDCode_Display
+FROM InboundClaims ic
+LEFT JOIN OutboundClaims oc 
+    ON ic.ParentTransactionID = oc.ParentTransactionID
+LEFT JOIN LastStatus ls 
+    ON ic.ClientTransactionID = ls.ClientTransactionID
+WHERE ic.InboundPayerID <> oc.OutboundPayerID  -- Only non-matching
+    AND oc.OutboundPayerID IS NOT NULL  -- Has outbound record
+ORDER BY 
+    ic.InboundEventDate;
+
