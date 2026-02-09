@@ -1,383 +1,61 @@
-You are a Playwright test generator and an expert in Javascript, Frontend development, and Playwright end-to-end testing.
-
-You are given a scenario and you need to generate a Playwright test for it.
-If you're asked to generate or create a Playwright test, use the tools provided by the Playwright MCP server to navigate the site and generate tests based on the current state and site snapshots.
-Do not generate tests based on assumptions. Use the Playwright MCP server to navigate and interact with sites.
-Access page snapshot before interacting with the page.
-Only after all steps are completed, emit a Playwright Javascript test that uses @playwright/test based on message history.
-When you generate the test code in the 'tests' directory, ALWAYS follow Playwright best practices.
-When the test is generated, always test and verify the generated code using `npx playwright test` and fix it if there are any issues.
-
-
-
-
-Generate a Playwright test for the following scenario:
-
-Navigate to https://ahc.tewostech.com/
-
-Find and fill email address and password with "superadmin@example.com" and "12345678" respectively
-
-Click the sign in button
-
-Find and clink on the news card 
-
-Check that the resulting URL is /admin/posts/News?perPage=10
-
-
-
-
-
-USE ReportsDB;
-GO
-
-CREATE OR ALTER PROCEDURE Refresh_Monthly_Orders_Incremental
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    ---------------------------
-    -- 1) Calculate date ranges
-    ---------------------------
-
-    -- Month to delete (3 months old)
-    DECLARE @DeleteMonthStart DATE = DATEFROMPARTS(
-        YEAR(DATEADD(MONTH, -3, GETDATE())),
-        MONTH(DATEADD(MONTH, -3, GETDATE())),
-        1
-    );
-
-    DECLARE @DeleteMonthEnd DATE = EOMONTH(DATEADD(MONTH, -3, GETDATE()));
-
-
-    -- Month to insert (last completed month)
-    DECLARE @InsertMonthStart DATE = DATEFROMPARTS(
-        YEAR(DATEADD(MONTH, -1, GETDATE())),
-        MONTH(DATEADD(MONTH, -1, GETDATE())),
-        1
-    );
-
-    DECLARE @InsertMonthEnd DATE = EOMONTH(DATEADD(MONTH, -1, GETDATE()));
-
-
-    ---------------------------
-    -- 2) DELETE old expired month
-    ---------------------------
-    DELETE FROM dbo.Orders
-    WHERE OrderDate BETWEEN @DeleteMonthStart AND @DeleteMonthEnd;
-
-
-    ---------------------------
-    -- 3) INSERT new month data (with identity)
-    ---------------------------
-    SET IDENTITY_INSERT dbo.Orders ON;
-
-    INSERT INTO dbo.Orders (OrderID, Product, Amount, OrderDate)
-    SELECT 
-        OrderID,
-        Product,
-        Amount,
-        OrderDate
-    FROM MainDB.dbo.Orders
-    WHERE OrderDate BETWEEN @InsertMonthStart AND @InsertMonthEnd;
-
-    SET IDENTITY_INSERT dbo.Orders OFF;
-
-END;
-GO
-
-
-You are an expert Playwright architect. I want to improve my Playwright test reports so that non-technical people can easily understand them.
-
-Your task is to directly edit my existing Playwright test files located in the `e2e` folder.
-
-Rewrite the tests so they are clearer, more readable, and non-technical by doing the following:
-
-1. Replace technical selectors-based steps with human-readable `test.step()` descriptions.
-2. Add plain-English annotations using `test.info().annotations`.
-3. Add business-friendly test titles and high-level explanations.
-4. Keep all logic, assertions, and structure exactly the same—only make the report output understandable to non-technical stakeholders.
-5. For every user action, write steps like “User clicks the Login button” instead of “page.locator(‘#login-btn’).click()”.
-6. Add optional Allure steps (`await allure.step(...)`) where it improves clarity.
-7. Do not remove or break any functional parts of the tests.
-8. Maintain imports, fixtures, and project setup exactly as they are.
-
-
-
-
-
-
-
-
-
-
-
-
-WITH InboundEvents AS (
-    SELECT
-        te.ClientTransactionID,
-        MIN(te.EventDate) AS InboundEventDate
-    FROM trxQA.dbo.TransactionEvents te
-    WHERE te.TransactionDirection = 'Inbound'
-    GROUP BY te.ClientTransactionID
-),
-OutboundEvents AS (
-    SELECT
-        te.ClientTransactionID,
-        MAX(te.EventDate) AS OutboundEventDate
-    FROM trxQA.dbo.TransactionEvents te
-    WHERE te.TransactionDirection = 'Outbound'
-    GROUP BY te.ClientTransactionID
-),
-LastStatus AS (
-    SELECT
-        te.ClientTransactionID,
-        te.Description,
-        ROW_NUMBER() OVER (
-            PARTITION BY te.ClientTransactionID
-            ORDER BY te.EventDate DESC
-        ) AS rn
-    FROM trxQA.dbo.TransactionEvents te
-)
-SELECT
-    ie.InboundEventDate AS ClaimCreateDate,
-    ct.TransactionID AS PartnerClaimID,
-    ct.ParentTransactionID AS DCIClaimID,
-    ct.PayerIDCode AS InboundPayerID,
-    CAST(NULL AS varchar(255)) AS InboundPayerAddress,
-    -- FIXED: Need to find the outbound transaction, not same record
-    out_ct.PayerIDCode AS OutboundPayerID,
-    ct.DestinationPartnerCode AS OutboundDestinationPartnerCode,
-    ls.Description AS LastClaimStatus,
-    ct.ParentTransactionID AS MetaClaimID,
-    ct.PayerID AS PayerIDCode_ID,
-    ct.PayerIDCode AS PayerIDCode_Display
-FROM trxQA.dbo.ClientTransactions ct
-JOIN InboundEvents ie ON ct.ClientTransactionID = ie.ClientTransactionID
-JOIN OutboundEvents oe ON ct.ClientTransactionID = oe.ClientTransactionID
--- FIXED JOIN: Find the OUTBOUND version of this claim
-JOIN trxQA.dbo.ClientTransactions out_ct 
-    ON out_ct.ParentTransactionID = ct.ParentTransactionID  -- Link by same claim
-    AND out_ct.ClientTransactionID IN (
-        SELECT ClientTransactionID 
-        FROM trxQA.dbo.TransactionEvents 
-        WHERE TransactionDirection = 'Outbound'
-    )
-JOIN LastStatus ls ON ls.ClientTransactionID = ct.ClientTransactionID AND ls.rn = 1
-WHERE
-    -- FIXED: Use correct partner codes from requirements
-    ct.SourcePartnerCode IN ('HSD', 'HSI Parents', 'GCC')
-    AND ct.SourcePartnerCode <> 'HSI'  -- Explicitly exclude HSI
-    -- FIXED: Correct date range (last 90 days of 03/31/2025)
-    AND ie.InboundEventDate BETWEEN '2025-01-01' AND '2025-03-31'
-    -- FIXED: Compare inbound vs outbound payer IDs
-    AND ct.PayerIDCode <> out_ct.PayerIDCode
-ORDER BY
-    ct.SourcePartnerCode,
-    ie.InboundEventDate;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
--- First, create indexes if you have permissions (run separately)
-/*
-CREATE INDEX idx_TransactionEvents_Direction_Date 
-ON trxQA.dbo.TransactionEvents (TransactionDirection, EventDate) 
-INCLUDE (ClientTransactionID, Description);
-
-CREATE INDEX idx_ClientTransactions_Source_Parent 
-ON trxQA.dbo.ClientTransactions (SourcePartnerCode, ParentTransactionID) 
-INCLUDE (ClientTransactionID, TransactionID, PayerIDCode, DestinationPartnerCode, PayerID);
-*/
-
--- Optimized query using temp tables and better joins
-WITH InboundClaims AS (
-    SELECT DISTINCT
-        ct.ClientTransactionID,
-        ct.TransactionID,
-        ct.ParentTransactionID,
-        ct.PayerIDCode AS InboundPayerID,
-        ct.DestinationPartnerCode,
-        ct.PayerID,
-        MIN(te.EventDate) AS InboundEventDate
-    FROM trxQA.dbo.ClientTransactions ct
-    JOIN trxQA.dbo.TransactionEvents te 
-        ON ct.ClientTransactionID = te.ClientTransactionID
-    WHERE te.TransactionDirection = 'Inbound'
-        AND ct.SourcePartnerCode IN ('HSD', 'HSI Parents', 'GCC')
-        AND ct.SourcePartnerCode <> 'HSI'
-        AND te.EventDate BETWEEN '2025-01-01' AND '2025-03-31'
-    GROUP BY ct.ClientTransactionID, ct.TransactionID, ct.ParentTransactionID,
-             ct.PayerIDCode, ct.DestinationPartnerCode, ct.PayerID
-),
-OutboundClaims AS (
-    SELECT DISTINCT
-        ct.ParentTransactionID,
-        ct.PayerIDCode AS OutboundPayerID,
-        MAX(te.EventDate) AS OutboundEventDate
-    FROM trxQA.dbo.ClientTransactions ct
-    JOIN trxQA.dbo.TransactionEvents te 
-        ON ct.ClientTransactionID = te.ClientTransactionID
-    WHERE te.TransactionDirection = 'Outbound'
-    GROUP BY ct.ParentTransactionID, ct.PayerIDCode
-),
-LastStatus AS (
-    SELECT 
-        ClientTransactionID,
-        Description AS LastClaimStatus
-    FROM (
-        SELECT
-            te.ClientTransactionID,
-            te.Description,
-            ROW_NUMBER() OVER (
-                PARTITION BY te.ClientTransactionID
-                ORDER BY te.EventDate DESC
-            ) AS rn
-        FROM trxQA.dbo.TransactionEvents te
-    ) sub
-    WHERE rn = 1
-)
-SELECT
-    ic.InboundEventDate AS ClaimCreateDate,
-    ic.TransactionID AS PartnerClaimID,
-    ic.ParentTransactionID AS DCIClaimID,
-    ic.InboundPayerID,
-    CAST(NULL AS varchar(255)) AS InboundPayerAddress,
-    oc.OutboundPayerID,
-    ic.DestinationPartnerCode AS OutboundDestinationPartnerCode,
-    ls.LastClaimStatus,
-    ic.ParentTransactionID AS MetaClaimID,
-    ic.PayerID AS PayerIDCode_ID,
-    ic.InboundPayerID AS PayerIDCode_Display
-FROM InboundClaims ic
-LEFT JOIN OutboundClaims oc 
-    ON ic.ParentTransactionID = oc.ParentTransactionID
-LEFT JOIN LastStatus ls 
-    ON ic.ClientTransactionID = ls.ClientTransactionID
-WHERE ic.InboundPayerID <> oc.OutboundPayerID  -- Only non-matching
-    AND oc.OutboundPayerID IS NOT NULL  -- Has outbound record
-ORDER BY 
-    ic.InboundEventDate;
-
-
-
-
-
--- Test with smaller date ranges first
-DECLARE @StartDate DATE = '2025-01-01';
-DECLARE @EndDate DATE = '2025-03-31';
-
--- Try one week at a time
-SET @StartDate = '2025-03-01';
-SET @EndDate = '2025-03-07';
-
-WITH InboundClaims AS (
-    SELECT DISTINCT
-        ct.ClientTransactionID,
-        ct.TransactionID,
-        ct.ParentTransactionID,
-        ct.PayerIDCode AS InboundPayerID,
-        ct.DestinationPartnerCode,
-        ct.PayerID,
-        ct.SourcePartnerCode,
-        MIN(te.EventDate) AS InboundEventDate
-    FROM trxQA.dbo.ClientTransactions ct
-    JOIN trxQA.dbo.TransactionEvents te 
-        ON ct.ClientTransactionID = te.ClientTransactionID
-    WHERE te.TransactionDirection = 'Inbound'
-        AND ct.SourcePartnerCode IN ('HSD', 'HSI Parents', 'GCC')
-        AND ct.SourcePartnerCode <> 'HSI'
-        AND te.EventDate BETWEEN @StartDate AND @EndDate  -- Limit date range
-    GROUP BY ct.ClientTransactionID, ct.TransactionID, ct.ParentTransactionID,
-             ct.PayerIDCode, ct.DestinationPartnerCode, ct.PayerID, ct.SourcePartnerCode
-)
-SELECT TOP 1000  -- Limit results for testing
-    ic.InboundEventDate AS ClaimCreateDate,
-    ic.TransactionID AS PartnerClaimID,
-    ic.ParentTransactionID AS DCIClaimID,
-    ic.InboundPayerID,
-    CAST(NULL AS varchar(255)) AS InboundPayerAddress,
-    'CHECK_OUTBOUND' AS OutboundPayerID,  -- Placeholder
-    ic.DestinationPartnerCode AS OutboundDestinationPartnerCode,
-    'PENDING' AS LastClaimStatus,  -- Placeholder
-    ic.ParentTransactionID AS MetaClaimID,
-    ic.PayerID AS PayerIDCode_ID,
-    ic.InboundPayerID AS PayerIDCode_Display,
-    ic.SourcePartnerCode
-FROM InboundClaims ic
-ORDER BY ic.InboundEventDate;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
--- DentaCarg Alliance Provider Pay To Address Report
-SELECT
-    u.UserID,
-    u.FirstName AS [Provider First Name],
-    u.LastName AS [Provider Last Name],
-    ua.AddressLine1 AS [Pay To Address Ln 1],
-    ua.AddressLine2 AS [Pay To Address Ln 2],
-    ua.City AS [Pay To Address City],
-    ua.State AS [Pay To Address State],
-    ua.Zip AS [Pay To Address Zip]
-FROM common.dbo.Users u
--- Join to get users in DCA groups
-INNER JOIN common.dbo.GroupsUsers gu ON u.UserID = gu.UserID
--- Join to get Pay To Address (AddressType = 1)
-INNER JOIN common.dbo.UserAddress ua ON u.UserID = ua.UserID 
-    AND ua.AddressType = 1
--- Join to identify DCA groups (assuming GroupName contains 'DCA' or similar identifier)
-INNER JOIN common.dbo.Groups g ON gu.GroupID = g.GroupID
-WHERE 
-    -- Filter for dental professionals only
-    u.Profession IN ('Dentist', 'Orthodontist', 'Periodontist', 
-                     'Endodontist', 'Oral Surgeon', 'Prosthodontist',
-                     'Pediatric Dentist', 'Dental Hygienist')
-    -- Identify DCA groups (adjust this filter based on actual group names/identifiers)
-    AND (g.GroupName LIKE '%DCA%' 
-         OR g.GroupName LIKE '%DentaCarg%' 
-         OR g.GroupName LIKE '%Dentacarg Alliance%'
-         OR g.GroupDescription LIKE '%DCA%')
-    -- Optional: Exclude inactive users if needed
-    AND u.IsActive = 1
-ORDER BY 
-    u.LastName, 
-    u.FirstName;
+You are a Senior QA Architect and .NET Automation Expert.
+
+I want you to design and generate a complete, production-ready Playwright .NET test automation framework for BOTH UI and API testing, following industry best practices.
+
+Context:
+- Language: C# (.NET)
+- Framework: Microsoft Playwright for .NET
+- Test Runner: NUnit
+- Target: Web UI + REST API testing in the same solution
+- Environment support: local, Dev, staging, production
+- CI/CD ready (GitHub Actions or Azure DevOps)
+
+Requirements:
+1. Solution Structure
+   - Clean folder structure (UI, API, Core, Utils, Config, Fixtures)
+   - Clear separation of concerns
+   - Reusable components and helpers
+
+2. UI Automation
+   - Page Object Model (POM) or Screenplay (recommend best approach)
+   - Stable locators strategy
+   - Parallel execution
+   - Cross-browser support (Chromium, Firefox, WebKit)
+   - Proper waits and async handling
+   - Screenshot + video on failure
+
+3. API Automation
+   - API client abstraction
+   - Auth handling (token-based)
+   - Request/response validation
+   - Schema validation
+   - Reusable API helpers
+
+4. Configuration & Environment Management
+   - appsettings.json + environment overrides
+   - Secure secrets handling
+   - Base URLs per environment
+
+5. Test Data Management
+   - Test data builders or factories
+   - Randomized data where applicable
+   - Cleanup strategy
+
+6. Reporting & Logging
+   - HTML report integration (Allure or Playwright HTML)
+   - Structured logging
+   - Failure diagnostics
+
+7. CI/CD
+   - Sample pipeline config
+   - Headless execution
+   - Artifact publishing (reports, screenshots)
+
+8. Best Practices
+   - Naming conventions
+   - Async/await usage
+   - Retry strategy (when appropriate)
+   - Tagging tests (smoke, regression)
+   - Code examples with explanations
+
+Assume this framework will be used by a mid-to-large team and must be maintainable long-term.
